@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     #Local apps
     'accounts.apps.AccountsConfig',
     'leads.apps.LeadsConfig',
+    'clients.apps.ClientsConfig',
 ]
 
 MIDDLEWARE = [
