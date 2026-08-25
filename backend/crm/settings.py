@@ -45,7 +45,8 @@ INSTALLED_APPS = [
     'corsheaders',
 
     #Local apps
-    'accounts.apps.AccountsConfig'
+    'accounts.apps.AccountsConfig',
+    'leads.apps.LeadsConfig',
 ]
 
 MIDDLEWARE = [
