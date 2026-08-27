@@ -1,5 +1,6 @@
 from rest_framework import viewsets, permissions
 from crm.utils import api_response
+from accounts.permissions import IsManagerOrAdmin
 from .models import Client
 from .serializers import ClientSerializer
 
@@ -8,6 +9,11 @@ class ClientViewSet(viewsets.ModelViewSet):
     queryset = Client.objects.filter(is_archived=False).order_by('-created_at')
     serializer_class = ClientSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [permissions.IsAuthenticated(), IsManagerOrAdmin()]
+        return [permissions.IsAuthenticated()]
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
