@@ -1,5 +1,6 @@
 from rest_framework import viewsets, permissions
 from crm.utils import api_response
+from accounts.permissions import IsManagerOrAdmin
 from .models import Lead
 from .serializers import LeadSerializer
 
@@ -8,6 +9,11 @@ class LeadViewSet(viewsets.ModelViewSet):
     queryset = Lead.objects.filter(is_archived=False).order_by('-created_at')
     serializer_class = LeadSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [permissions.IsAuthenticated(), IsManagerOrAdmin()]
+        return [permissions.IsAuthenticated()]
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
