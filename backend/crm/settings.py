@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'leads.apps.LeadsConfig',
     'clients.apps.ClientsConfig',
     'projects.apps.ProjectsConfig',
+    'tasks.apps.TasksConfig',
 ]
 
 MIDDLEWARE = [
