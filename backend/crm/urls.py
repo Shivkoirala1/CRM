@@ -25,11 +25,14 @@ from accounts.views import me
 from leads.views import LeadViewSet
 from clients.views import ClientViewSet
 from projects.views import ProjectViewSet
+from tasks.views import TaskViewSet
 
 router = DefaultRouter()
 router.register('leads', LeadViewSet, basename='lead')
 router.register('clients', ClientViewSet, basename='client')
 router.register('projects', ProjectViewSet, basename = 'project')
+router.register('tasks', TaskViewSet, basename='task')
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
