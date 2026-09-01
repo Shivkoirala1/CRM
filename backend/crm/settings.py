@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'clients.apps.ClientsConfig',
     'projects.apps.ProjectsConfig',
     'tasks.apps.TasksConfig',
+    'invoices.apps.InvoicesConfig',
 ]
 
 MIDDLEWARE = [
