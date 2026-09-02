@@ -26,17 +26,20 @@ from leads.views import LeadViewSet
 from clients.views import ClientViewSet
 from projects.views import ProjectViewSet
 from tasks.views import TaskViewSet
+from invoices.views import InvoiceViewSet, client_payment_history
 
 router = DefaultRouter()
 router.register('leads', LeadViewSet, basename='lead')
 router.register('clients', ClientViewSet, basename='client')
 router.register('projects', ProjectViewSet, basename = 'project')
 router.register('tasks', TaskViewSet, basename='task')
+router.register('invoices', InvoiceViewSet, basename='invoice')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/me/', me, name='me'),
+    path('api/clients/<int:client_id>/payment-history/', client_payment_history, name='client-payment'),
     path('api/', include(router.urls)),
 ]
