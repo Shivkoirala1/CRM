@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'projects.apps.ProjectsConfig',
     'tasks.apps.TasksConfig',
     'invoices.apps.InvoicesConfig',
+    'dashboard.apps.DashboardConfig',
 ]
 
 MIDDLEWARE = [
