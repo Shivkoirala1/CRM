@@ -4,6 +4,9 @@ from crm.utils import api_response
 from accounts.permissions import IsManagerOrAdmin
 from .models import Invoice
 from .serializers import InvoiceSerializer
+from rest_framework.decorators import api_view, permission_classes
+from clients.models import Client
+
 
 
 class InvoiceViewSet(viewsets.ModelViewSet):
@@ -66,3 +69,14 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             message="Invoice archived successfully.",
             data=None
         )
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def client_payment_history(request, client_id):
+    invoices = Invoice.objects.filter(client_id=client_id, is_archived=False).order_by('-issue_date')
+    serializer = InvoiceSerializer(invoices, many=True)
+    return api_response(
+        success=True,
+        message="Payment history retrieved successfully.",
+        data=serializer.data
+    )
