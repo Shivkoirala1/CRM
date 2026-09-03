@@ -1,13 +1,17 @@
+from django.shortcuts import render
 from rest_framework import viewsets, permissions
 from crm.utils import api_response
 from accounts.permissions import IsManagerOrAdmin
-from .models import Lead
-from .serializers import LeadSerializer
+from .models import Invoice
+from .serializers import InvoiceSerializer
+from rest_framework.decorators import api_view, permission_classes
+from clients.models import Client
 
 
-class LeadViewSet(viewsets.ModelViewSet):
-    queryset = Lead.objects.filter(is_archived=False).order_by('-created_at')
-    serializer_class = LeadSerializer
+
+class InvoiceViewSet(viewsets.ModelViewSet):
+    queryset = Invoice.objects.filter(is_archived=False).order_by('-created_at')
+    serializer_class = InvoiceSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_permissions(self):
@@ -20,7 +24,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return api_response(
             success=True,
-            message="Leads retrieved successfully.",
+            message="Invoices retrieved successfully.",
             data=serializer.data
         )
 
@@ -29,7 +33,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance)
         return api_response(
             success=True,
-            message="Lead retrieved successfully.",
+            message="Invoice retrieved successfully.",
             data=serializer.data
         )
 
@@ -39,7 +43,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer.save()
         return api_response(
             success=True,
-            message="Lead created successfully.",
+            message="Invoice created successfully.",
             data=serializer.data,
             status_code=201
         )
@@ -52,7 +56,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer.save()
         return api_response(
             success=True,
-            message="Lead updated successfully.",
+            message="Invoice updated successfully.",
             data=serializer.data
         )
 
@@ -62,6 +66,17 @@ class LeadViewSet(viewsets.ModelViewSet):
         instance.save()
         return api_response(
             success=True,
-            message="Lead archived successfully.",
+            message="Invoice archived successfully.",
             data=None
         )
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def client_payment_history(request, client_id):
+    invoices = Invoice.objects.filter(client_id=client_id, is_archived=False).order_by('-issue_date')
+    serializer = InvoiceSerializer(invoices, many=True)
+    return api_response(
+        success=True,
+        message="Payment history retrieved successfully.",
+        data=serializer.data
+    )

@@ -15,15 +15,34 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
 from accounts.views import me
+from leads.views import LeadViewSet
+from clients.views import ClientViewSet
+from projects.views import ProjectViewSet
+from tasks.views import TaskViewSet
+from invoices.views import InvoiceViewSet, client_payment_history
+from dashboard.views import dashboard_stats, revenue_report
+
+router = DefaultRouter()
+router.register('leads', LeadViewSet, basename='lead')
+router.register('clients', ClientViewSet, basename='client')
+router.register('projects', ProjectViewSet, basename = 'project')
+router.register('tasks', TaskViewSet, basename='task')
+router.register('invoices', InvoiceViewSet, basename='invoice')
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/me/', me, name='me'),
+    path('api/clients/<int:client_id>/payment-history/', client_payment_history, name='client-payment'),
+    path('api/', include(router.urls)),
+    path('api/dashboard/stats/', dashboard_stats, name='dashboard-stats'),
+    path('api/dashboard/revenue/', revenue_report, name='dashboard-revenue'),
 ]

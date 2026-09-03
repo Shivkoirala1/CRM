@@ -1,13 +1,13 @@
 from rest_framework import viewsets, permissions
 from crm.utils import api_response
 from accounts.permissions import IsManagerOrAdmin
-from .models import Lead
-from .serializers import LeadSerializer
+from .models import Client
+from .serializers import ClientSerializer
 
 
-class LeadViewSet(viewsets.ModelViewSet):
-    queryset = Lead.objects.filter(is_archived=False).order_by('-created_at')
-    serializer_class = LeadSerializer
+class ClientViewSet(viewsets.ModelViewSet):
+    queryset = Client.objects.filter(is_archived=False).order_by('-created_at')
+    serializer_class = ClientSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_permissions(self):
@@ -20,7 +20,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return api_response(
             success=True,
-            message="Leads retrieved successfully.",
+            message="Clients retrieved successfully.",
             data=serializer.data
         )
 
@@ -29,7 +29,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance)
         return api_response(
             success=True,
-            message="Lead retrieved successfully.",
+            message="Client retrieved successfully.",
             data=serializer.data
         )
 
@@ -39,7 +39,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer.save()
         return api_response(
             success=True,
-            message="Lead created successfully.",
+            message="Client created successfully.",
             data=serializer.data,
             status_code=201
         )
@@ -52,7 +52,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer.save()
         return api_response(
             success=True,
-            message="Lead updated successfully.",
+            message="Client updated successfully.",
             data=serializer.data
         )
 
@@ -62,6 +62,6 @@ class LeadViewSet(viewsets.ModelViewSet):
         instance.save()
         return api_response(
             success=True,
-            message="Lead archived successfully.",
+            message="Client archived successfully.",
             data=None
         )
