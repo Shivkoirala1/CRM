@@ -27,6 +27,7 @@ from clients.views import ClientViewSet
 from projects.views import ProjectViewSet
 from tasks.views import TaskViewSet
 from invoices.views import InvoiceViewSet, client_payment_history
+from dashboard.views import dashboard_stats, revenue_report
 
 router = DefaultRouter()
 router.register('leads', LeadViewSet, basename='lead')
@@ -42,4 +43,6 @@ urlpatterns = [
     path('api/me/', me, name='me'),
     path('api/clients/<int:client_id>/payment-history/', client_payment_history, name='client-payment'),
     path('api/', include(router.urls)),
+    path('api/dashboard/stats/', dashboard_stats, name='dashboard-stats'),
+    path('api/dashboard/revenue/', revenue_report, name='dashboard-revenue'),
 ]
