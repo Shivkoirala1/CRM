@@ -47,3 +47,40 @@ def dashboard_stats(request):
         message="Dashboard statistics retrieved successfully.",
         data=data
     )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def revenue_report(request):
+    by_service = (
+        Invoice.objects.filter(is_archived=False, payment_status=Invoice.PaymentStatus.PAID)
+        .values('project__service')
+        .annotate(total=Sum('amount'))
+        .order_by('-total')
+    )
+
+    by_lead_source = (
+        Lead.objects.filter(is_archived=False, status=Lead.LeadStatus.CONVERTED)
+        .values('lead_source')
+        .annotate(count=Count('id'))
+        .order_by('-count')
+    )
+
+    by_team_member = (
+        Invoice.objects.filter(is_archived=False, payment_status=Invoice.PaymentStatus.PAID)
+        .values('project__assigned_employees__username')
+        .annotate(total=Sum('amount'))
+        .order_by('-total')
+    )
+
+    data = {
+        "by_service": list(by_service),
+        "by_lead_source": list(by_lead_source),
+        "by_team_member": list(by_team_member),
+    }
+
+    return api_response(
+        success=True,
+        message="Revenue report retrieved successfully.",
+        data=data
+    )
