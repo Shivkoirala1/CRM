@@ -10,6 +10,12 @@ from invoices.models import Invoice
 from django.http import HttpResponse
 from openpyxl import Workbook
 
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+import io
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -119,4 +125,42 @@ def export_leads_excel(request):
     )
     response['Content-Disposition'] = 'attachment; filename="leads_report.xlsx"'
     wb.save(response)
+    return response
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_leads_pdf(request):
+    leads = Lead.objects.filter(is_archived=False)
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    styles = getSampleStyleSheet()
+
+    elements = [Paragraph("Leads Report", styles['Title'])]
+
+    data = [['ID', 'Name', 'Email', 'Status', 'Source']]
+    for lead in leads:
+        data.append([
+            str(lead.id),
+            lead.name,
+            lead.email or '',
+            lead.get_status_display(),
+            lead.get_lead_source_display(),
+        ])
+
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+    ]))
+    elements.append(table)
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="leads_report.pdf"'
     return response
