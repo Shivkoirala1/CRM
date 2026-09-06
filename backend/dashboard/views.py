@@ -7,6 +7,9 @@ from crm.utils import api_response
 from leads.models import Lead
 from invoices.models import Invoice
 
+from django.http import HttpResponse
+from openpyxl import Workbook
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -84,3 +87,36 @@ def revenue_report(request):
         message="Revenue report retrieved successfully.",
         data=data
     )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_leads_excel(request):
+    leads = Lead.objects.filter(is_archived=False)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Leads"
+
+    headers = ['ID', 'Name', 'Email', 'Phone', 'Company', 'Source', 'Status', 'Assigned To', 'Created At']
+    ws.append(headers)
+
+    for lead in leads:
+        ws.append([
+            lead.id,
+            lead.name,
+            lead.email or '',
+            lead.phone or '',
+            lead.company or '',
+            lead.get_lead_source_display(),
+            lead.get_status_display(),
+            lead.assigned_employee.username if lead.assigned_employee else '',
+            lead.created_at.strftime('%Y-%m-%d %H:%M'),
+        ])
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="leads_report.xlsx"'
+    wb.save(response)
+    return response
