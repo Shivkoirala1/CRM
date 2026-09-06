@@ -27,7 +27,7 @@ from clients.views import ClientViewSet
 from projects.views import ProjectViewSet
 from tasks.views import TaskViewSet
 from invoices.views import InvoiceViewSet, client_payment_history
-from dashboard.views import dashboard_stats, revenue_report
+from dashboard.views import dashboard_stats, revenue_report, export_leads_excel, export_leads_pdf
 
 router = DefaultRouter()
 router.register('leads', LeadViewSet, basename='lead')
@@ -45,4 +45,6 @@ urlpatterns = [
     path('api/', include(router.urls)),
     path('api/dashboard/stats/', dashboard_stats, name='dashboard-stats'),
     path('api/dashboard/revenue/', revenue_report, name='dashboard-revenue'),
+    path('api/dashboard/export/leads/excel/', export_leads_excel, name='export-leads-excel'),
+    path('api/dashboard/export/leads/pdf/', export_leads_pdf, name='export-leads-pdf'),
 ]
