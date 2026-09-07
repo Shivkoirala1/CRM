@@ -1,4 +1,5 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, filters
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from crm.utils import api_response
 from accounts.permissions import IsManagerOrAdmin
@@ -10,6 +11,11 @@ class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.filter(is_archived=False).order_by('-created_at')
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'client']
+    search_fields = ['name', 'service', 'description']
+    ordering_fields = ['created_at', 'start_date', 'deadline', 'name']
 
     def get_permissions(self):
         if self.action in ['destroy', 'assign_employees']:

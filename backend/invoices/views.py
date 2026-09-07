@@ -1,5 +1,6 @@
 from django.shortcuts import render
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, filters
+from django_filters.rest_framework import DjangoFilterBackend
 from crm.utils import api_response
 from accounts.permissions import IsManagerOrAdmin
 from .models import Invoice
@@ -13,6 +14,11 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     queryset = Invoice.objects.filter(is_archived=False).order_by('-created_at')
     serializer_class = InvoiceSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['payment_status', 'client']
+    search_fields = ['invoice_number']
+    ordering_fields = ['issue_date', 'due_date', 'amount']
 
     def get_permissions(self):
         if self.action == 'destroy':

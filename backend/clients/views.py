@@ -1,4 +1,5 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, filters
+from django_filters.rest_framework import DjangoFilterBackend
 from crm.utils import api_response
 from accounts.permissions import IsManagerOrAdmin
 from .models import Client
@@ -9,6 +10,11 @@ class ClientViewSet(viewsets.ModelViewSet):
     queryset = Client.objects.filter(is_archived=False).order_by('-created_at')
     serializer_class = ClientSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['payment_status', 'assigned_employee']
+    search_fields = ['name', 'email', 'phone', 'company_name']
+    ordering_fields = ['created_at', 'name', 'renewal_date']
 
     def get_permissions(self):
         if self.action == 'destroy':
