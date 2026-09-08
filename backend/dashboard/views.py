@@ -16,9 +16,6 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 import io
 
-from leads.serializers import Q
-from leads.models import Lead
-from leads.serializers import LeadSerializer
 from clients.models import Client
 from clients.serializers import ClientSerializer
 from projects.models import Project
