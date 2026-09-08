@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'tasks.apps.TasksConfig',
     'invoices.apps.InvoicesConfig',
     'dashboard.apps.DashboardConfig',
+    'notifications.apps.NotificationsConfig',
 ]
 
 MIDDLEWARE = [
