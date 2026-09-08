@@ -16,6 +16,17 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 import io
 
+from leads.serializers import Q
+from leads.models import Lead
+from leads.serializers import LeadSerializer
+from clients.models import Client
+from clients.serializers import ClientSerializer
+from projects.models import Project
+from projects.serializers import ProjectSerializer
+from tasks.models import Task
+from tasks.serializers import TaskSerializer
+from invoices.models import Invoice
+from invoices.serializers import InvoiceSerializer
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -164,3 +175,52 @@ def export_leads_pdf(request):
     response = HttpResponse(buffer, content_type='application/pdf')
     response['Content-Disposition'] = 'attachment; filename="leads_report.pdf"'
     return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def global_search(request):
+    query = request.query_params.get('q', '').strip()
+
+    if not query:
+        return api_response(
+            success=False,
+            message="Search query is required.",
+            errors={"q": "This field is required as a query parameter."},
+            status_code=400
+        )
+
+    leads = Lead.objects.filter(
+        Q(name__icontains=query) | Q(email__icontains=query) | Q(phone__icontains=query) | Q(company__icontains=query),
+        is_archived=False
+    )
+    clients = Client.objects.filter(
+        Q(name__icontains=query) | Q(email__icontains=query) | Q(phone__icontains=query) | Q(company_name__icontains=query),
+        is_archived=False
+    )
+    projects = Project.objects.filter(
+        Q(name__icontains=query) | Q(service__icontains=query),
+        is_archived=False
+    )
+    tasks = Task.objects.filter(
+        Q(title__icontains=query) | Q(description__icontains=query)
+    )
+    invoices = Invoice.objects.filter(
+        Q(invoice_number__icontains=query),
+        is_archived=False
+    )
+
+    data = {
+        "leads": LeadSerializer(leads, many=True).data,
+        "clients": ClientSerializer(clients, many=True).data,
+        "projects": ProjectSerializer(projects, many=True).data,
+        "tasks": TaskSerializer(tasks, many=True).data,
+        "invoices": InvoiceSerializer(invoices, many=True).data,
+    }
+
+    return api_response(
+        success=True,
+        message=f"Search results for '{query}'.",
+        data=data
+    )
+
