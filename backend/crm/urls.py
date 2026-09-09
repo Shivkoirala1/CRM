@@ -28,6 +28,7 @@ from projects.views import ProjectViewSet
 from tasks.views import TaskViewSet
 from invoices.views import InvoiceViewSet, client_payment_history
 from dashboard.views import dashboard_stats, revenue_report, export_leads_excel, export_leads_pdf, global_search
+from notifications.views import NotificationViewSet
 
 router = DefaultRouter()
 router.register('leads', LeadViewSet, basename='lead')
@@ -35,6 +36,7 @@ router.register('clients', ClientViewSet, basename='client')
 router.register('projects', ProjectViewSet, basename = 'project')
 router.register('tasks', TaskViewSet, basename='task')
 router.register('invoices', InvoiceViewSet, basename='invoice')
+router.register('notifications', NotificationViewSet, basename='notification')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
