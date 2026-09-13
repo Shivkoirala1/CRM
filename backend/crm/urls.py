@@ -27,6 +27,7 @@ from tasks.views import TaskViewSet
 from invoices.views import InvoiceViewSet, client_payment_history
 from dashboard.views import dashboard_stats, revenue_report, export_leads_excel, export_leads_pdf, global_search
 from notifications.views import NotificationViewSet
+from accounts.views import me, CustomTokenObtainPairView, enable_2fa, verify_2fa_setup
 
 router = DefaultRouter()
 router.register('leads', LeadViewSet, basename='lead')
@@ -48,4 +49,6 @@ urlpatterns = [
     path('api/dashboard/export/leads/excel/', export_leads_excel, name='export-leads-excel'),
     path('api/dashboard/export/leads/pdf/', export_leads_pdf, name='export-leads-pdf'),
     path('api/search/', global_search, name='global-search'),
+    path('api/2fa/enable/', enable_2fa, name='enable-2fa'),
+    path('api/2fa/verify-setup/', verify_2fa_setup, name='verify-2fa-setup'),
 ]
