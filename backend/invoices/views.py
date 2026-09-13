@@ -1,13 +1,12 @@
-from django.shortcuts import render
 from rest_framework import viewsets, permissions, filters
+from rest_framework.decorators import api_view, permission_classes
 from django_filters.rest_framework import DjangoFilterBackend
 from crm.utils import api_response
 from accounts.permissions import IsManagerOrAdmin
+from audit.utils import log_action
+from audit.models import AuditLog
 from .models import Invoice
 from .serializers import InvoiceSerializer
-from rest_framework.decorators import api_view, permission_classes
-from clients.models import Client
-
 
 
 class InvoiceViewSet(viewsets.ModelViewSet):
@@ -47,6 +46,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        log_action(request, AuditLog.ActionType.CREATE, serializer.instance, f"Created invoice: {serializer.instance.invoice_number}")
         return api_response(
             success=True,
             message="Invoice created successfully.",
@@ -60,6 +60,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        log_action(request, AuditLog.ActionType.UPDATE, serializer.instance, f"Updated invoice: {serializer.instance.invoice_number}")
         return api_response(
             success=True,
             message="Invoice updated successfully.",
@@ -70,11 +71,13 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         instance.is_archived = True
         instance.save()
+        log_action(request, AuditLog.ActionType.DELETE, instance, f"Archived invoice: {instance.invoice_number}")
         return api_response(
             success=True,
             message="Invoice archived successfully.",
             data=None
         )
+
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])

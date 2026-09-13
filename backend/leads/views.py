@@ -4,6 +4,9 @@ from crm.utils import api_response
 from accounts.permissions import IsManagerOrAdmin
 from .models import Lead
 from .serializers import LeadSerializer
+from audit.utils import log_action
+from audit.models import AuditLog
+
 
 class LeadViewSet(viewsets.ModelViewSet):
     queryset = Lead.objects.filter(is_archived=False).order_by('-created_at')
@@ -42,6 +45,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        log_action(request, AuditLog.ActionType.CREATE, serializer.instance, f"Created lead: {serializer.instance.name}")
         return api_response(
             success=True,
             message="Lead created successfully.",
@@ -55,6 +59,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        log_action(request, AuditLog.ActionType.UPDATE, serializer.instance, f"Updated lead: {serializer.instance.name}")
         return api_response(
             success=True,
             message="Lead updated successfully.",
@@ -65,6 +70,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         instance.is_archived = True
         instance.save()
+        log_action(request, AuditLog.ActionType.DELETE, instance, f"Archived lead: {instance.name}")
         return api_response(
             success=True,
             message="Lead archived successfully.",
