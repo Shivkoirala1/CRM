@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'django_filters',
 
     #Local apps
     'accounts.apps.AccountsConfig',
@@ -53,6 +54,8 @@ INSTALLED_APPS = [
     'tasks.apps.TasksConfig',
     'invoices.apps.InvoicesConfig',
     'dashboard.apps.DashboardConfig',
+    'notifications.apps.NotificationsConfig',
+    'audit.apps.AuditConfig',
 ]
 
 MIDDLEWARE = [

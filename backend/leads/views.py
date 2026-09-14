@@ -1,14 +1,22 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, filters
+from django_filters.rest_framework import DjangoFilterBackend
 from crm.utils import api_response
 from accounts.permissions import IsManagerOrAdmin
 from .models import Lead
 from .serializers import LeadSerializer
+from audit.utils import log_action
+from audit.models import AuditLog
 
 
 class LeadViewSet(viewsets.ModelViewSet):
     queryset = Lead.objects.filter(is_archived=False).order_by('-created_at')
     serializer_class = LeadSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'lead_source', 'assigned_employee']
+    search_fields = ['name', 'email', 'phone', 'company']
+    ordering_fields = ['created_at', 'name', 'status']
 
     def get_permissions(self):
         if self.action == 'destroy':
@@ -37,6 +45,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        log_action(request, AuditLog.ActionType.CREATE, serializer.instance, f"Created lead: {serializer.instance.name}")
         return api_response(
             success=True,
             message="Lead created successfully.",
@@ -50,6 +59,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        log_action(request, AuditLog.ActionType.UPDATE, serializer.instance, f"Updated lead: {serializer.instance.name}")
         return api_response(
             success=True,
             message="Lead updated successfully.",
@@ -60,6 +70,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         instance.is_archived = True
         instance.save()
+        log_action(request, AuditLog.ActionType.DELETE, instance, f"Archived lead: {instance.name}")
         return api_response(
             success=True,
             message="Lead archived successfully.",
