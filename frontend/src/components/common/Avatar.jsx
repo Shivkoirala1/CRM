@@ -1,24 +1,25 @@
 import { useUsers } from "../../context/DataContext";
-import { userById } from "../../data/mockData";
+import { userById, avatarColor, avatarInitials } from "../../data/mockData";
 
 export default function Avatar({ userId, size = 28 }) {
   const users = useUsers();
   const u = userById(users, userId);
   if (!u) return null;
+  const color = avatarColor(u);
   return (
     <div
-      title={u.name}
+      title={u.username}
       className="avatar"
       style={{
         width: size,
         height: size,
         fontSize: size * 0.36,
-        background: u.color + "26",
-        color: u.color,
-        border: `1px solid ${u.color}55`,
+        background: color + "26",
+        color,
+        border: `1px solid ${color}55`,
       }}
     >
-      {u.initials}
+      {avatarInitials(u)}
     </div>
   );
 }
