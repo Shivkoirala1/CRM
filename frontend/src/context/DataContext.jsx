@@ -4,58 +4,129 @@ import * as api from "../services/api";
 const DataContext = createContext(null);
 
 /**
- * Loads all CRM collections once (via the API service layer, which falls
- * back to mock data if the backend isn't running yet) and exposes them —
- * plus setters — to the rest of the app through a single context.
+ * Owns auth state (JWT session) and every CRM collection, all backed by
+ * the real Django API — see src/services/api.js for the endpoints. On
+ * mount it tries to restore a session from a stored access token; once
+ * signed in, it loads all collections and the two dashboard aggregate
+ * endpoints once, and exposes setters so views can update local state
+ * from what the backend returns on create/update rather than refetching
+ * everything.
  */
 export function DataProvider({ children }) {
+  const [authUser, setAuthUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [users, setUsers] = useState([]);
   const [leads, setLeads] = useState([]);
   const [clients, setClients] = useState([]);
   const [projects, setProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [invoices, setInvoices] = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [activity, setActivity] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [revenueReport, setRevenueReport] = useState(null);
+
+  const [dataLoading, setDataLoading] = useState(false);
+  const [dataError, setDataError] = useState("");
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const loadAll = useCallback(async () => {
-    setLoading(true);
-    const [u, l, c, p, t, i, n, a] = await Promise.all([
-      api.getUsers(),
-      api.getLeads(),
-      api.getClients(),
-      api.getProjects(),
-      api.getTasks(),
-      api.getInvoices(),
-      api.getNotifications(),
-      api.getActivity(),
-    ]);
-    setUsers(u);
-    setLeads(l);
-    setClients(c);
-    setProjects(p);
-    setTasks(t);
-    setInvoices(i);
-    setNotifications(n);
-    setActivity(a);
-    setLoading(false);
+    setDataLoading(true);
+    setDataError("");
+    try {
+      const [u, l, c, p, t, i] = await Promise.all([
+        api.getUsers(),
+        api.getLeads(),
+        api.getClients(),
+        api.getProjects(),
+        api.getTasks(),
+        api.getInvoices(),
+      ]);
+      setUsers(u);
+      setLeads(l);
+      setClients(c);
+      setProjects(p);
+      setTasks(t);
+      setInvoices(i);
+      // Dashboard aggregates are non-fatal — the dashboards fall back to
+      // computing what they can from the collections above if this fails.
+      try {
+        const [stats, revenue] = await Promise.all([api.getDashboardStats(), api.getRevenueReport()]);
+        setDashboardStats(stats);
+        setRevenueReport(revenue);
+      } catch {
+        setDashboardStats(null);
+        setRevenueReport(null);
+      }
+    } catch (err) {
+      setDataError(api.getErrorMessage(err));
+    } finally {
+      setDataLoading(false);
+      setHasLoadedOnce(true);
+    }
+  }, []);
+
+  // Restore session from a stored token on first load.
+  useEffect(() => {
+    (async () => {
+      if (api.hasToken()) {
+        try {
+          const me = await api.getMe();
+          setAuthUser(me);
+        } catch {
+          api.clearTokens();
+        }
+      }
+      setAuthLoading(false);
+    })();
   }, []);
 
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    if (authUser) loadAll();
+  }, [authUser, loadAll]);
+
+  const login = useCallback(async (username, password) => {
+    const me = await api.login(username, password); // throws ApiError on bad credentials
+    setAuthUser(me);
+    return me;
+  }, []);
+
+  const logout = useCallback(() => {
+    api.clearTokens();
+    setAuthUser(null);
+    setUsers([]);
+    setLeads([]);
+    setClients([]);
+    setProjects([]);
+    setTasks([]);
+    setInvoices([]);
+    setDashboardStats(null);
+    setRevenueReport(null);
+    setHasLoadedOnce(false);
+  }, []);
 
   const value = {
-    users, setUsers,
-    leads, setLeads,
-    clients, setClients,
-    projects, setProjects,
-    tasks, setTasks,
-    invoices, setInvoices,
-    notifications, setNotifications,
-    activity, setActivity,
-    loading,
+    authUser,
+    authLoading,
+    login,
+    logout,
+    users,
+    setUsers,
+    leads,
+    setLeads,
+    clients,
+    setClients,
+    projects,
+    setProjects,
+    tasks,
+    setTasks,
+    invoices,
+    setInvoices,
+    dashboardStats,
+    revenueReport,
+    dataLoading,
+    dataError,
+    hasLoadedOnce,
+    reload: loadAll,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
