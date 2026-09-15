@@ -14,5 +14,9 @@ class User(AbstractUser):
     )
     phone=models.CharField(max_length=20, blank=True, null=True)
 
+    # 2FA fields
+    otp_secret = models.CharField(max_length=32, blank=True, null=True)
+    is_2fa_enabled = models.BooleanField(default=False)
+
     def __str__(self):
         return f"{self.username} (self{self.role})"

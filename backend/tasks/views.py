@@ -1,5 +1,6 @@
 from django.shortcuts import render
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, filters
+from django_filters.rest_framework import DjangoFilterBackend
 from crm.utils import api_response
 from .models import Task
 from .serializers import TaskSerializer
@@ -9,6 +10,11 @@ class TaskViewSet(viewsets.ModelViewSet):
     queryset = Task.objects.all().order_by('-created_at')
     serializer_class = TaskSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'priority', 'assigned_to']
+    search_fields = ['title', 'description']
+    ordering_fields = ['due_date', 'priority', 'created_at']
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())

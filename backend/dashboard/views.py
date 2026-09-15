@@ -7,6 +7,25 @@ from crm.utils import api_response
 from leads.models import Lead
 from invoices.models import Invoice
 
+from django.http import HttpResponse
+from openpyxl import Workbook
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+import io
+
+from clients.models import Client
+from clients.serializers import ClientSerializer
+from leads.models import Lead
+from leads.serializers import LeadSerializer
+from projects.models import Project
+from projects.serializers import ProjectSerializer
+from tasks.models import Task
+from tasks.serializers import TaskSerializer
+from invoices.models import Invoice
+from invoices.serializers import InvoiceSerializer
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -84,3 +103,123 @@ def revenue_report(request):
         message="Revenue report retrieved successfully.",
         data=data
     )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_leads_excel(request):
+    leads = Lead.objects.filter(is_archived=False)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Leads"
+
+    headers = ['ID', 'Name', 'Email', 'Phone', 'Company', 'Source', 'Status', 'Assigned To', 'Created At']
+    ws.append(headers)
+
+    for lead in leads:
+        ws.append([
+            lead.id,
+            lead.name,
+            lead.email or '',
+            lead.phone or '',
+            lead.company or '',
+            lead.get_lead_source_display(),
+            lead.get_status_display(),
+            lead.assigned_employee.username if lead.assigned_employee else '',
+            lead.created_at.strftime('%Y-%m-%d %H:%M'),
+        ])
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="leads_report.xlsx"'
+    wb.save(response)
+    return response
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_leads_pdf(request):
+    leads = Lead.objects.filter(is_archived=False)
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    styles = getSampleStyleSheet()
+
+    elements = [Paragraph("Leads Report", styles['Title'])]
+
+    data = [['ID', 'Name', 'Email', 'Status', 'Source']]
+    for lead in leads:
+        data.append([
+            str(lead.id),
+            lead.name,
+            lead.email or '',
+            lead.get_status_display(),
+            lead.get_lead_source_display(),
+        ])
+
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+    ]))
+    elements.append(table)
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="leads_report.pdf"'
+    return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def global_search(request):
+    query = request.query_params.get('q', '').strip()
+
+    if not query:
+        return api_response(
+            success=False,
+            message="Search query is required.",
+            errors={"q": "This field is required as a query parameter."},
+            status_code=400
+        )
+
+    leads = Lead.objects.filter(
+        Q(name__icontains=query) | Q(email__icontains=query) | Q(phone__icontains=query) | Q(company__icontains=query),
+        is_archived=False
+    )
+    clients = Client.objects.filter(
+        Q(name__icontains=query) | Q(email__icontains=query) | Q(phone__icontains=query) | Q(company_name__icontains=query),
+        is_archived=False
+    )
+    projects = Project.objects.filter(
+        Q(name__icontains=query) | Q(service__icontains=query),
+        is_archived=False
+    )
+    tasks = Task.objects.filter(
+        Q(title__icontains=query) | Q(description__icontains=query)
+    )
+    invoices = Invoice.objects.filter(
+        Q(invoice_number__icontains=query),
+        is_archived=False
+    )
+
+    data = {
+        "leads": LeadSerializer(leads, many=True).data,
+        "clients": ClientSerializer(clients, many=True).data,
+        "projects": ProjectSerializer(projects, many=True).data,
+        "tasks": TaskSerializer(tasks, many=True).data,
+        "invoices": InvoiceSerializer(invoices, many=True).data,
+    }
+
+    return api_response(
+        success=True,
+        message=f"Search results for '{query}'.",
+        data=data
+    )
+

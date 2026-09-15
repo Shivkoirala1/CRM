@@ -1,7 +1,10 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, filters
 from rest_framework.decorators import action
+from django_filters.rest_framework import DjangoFilterBackend
 from crm.utils import api_response
 from accounts.permissions import IsManagerOrAdmin
+from audit.utils import log_action
+from audit.models import AuditLog
 from .models import Project
 from .serializers import ProjectSerializer
 
@@ -10,6 +13,11 @@ class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.filter(is_archived=False).order_by('-created_at')
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'client']
+    search_fields = ['name', 'service', 'description']
+    ordering_fields = ['created_at', 'start_date', 'deadline', 'name']
 
     def get_permissions(self):
         if self.action in ['destroy', 'assign_employees']:
@@ -38,6 +46,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        log_action(request, AuditLog.ActionType.CREATE, serializer.instance, f"Created project: {serializer.instance.name}")
         return api_response(
             success=True,
             message="Project created successfully.",
@@ -51,6 +60,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        log_action(request, AuditLog.ActionType.UPDATE, serializer.instance, f"Updated project: {serializer.instance.name}")
         return api_response(
             success=True,
             message="Project updated successfully.",
@@ -61,6 +71,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         instance.is_archived = True
         instance.save()
+        log_action(request, AuditLog.ActionType.DELETE, instance, f"Archived project: {instance.name}")
         return api_response(
             success=True,
             message="Project archived successfully.",
@@ -72,6 +83,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         project = self.get_object()
         employee_ids = request.data.get('employee_ids', [])
         project.assigned_employees.set(employee_ids)
+        log_action(request, AuditLog.ActionType.UPDATE, project, f"Assigned employees to project: {project.name}")
         serializer = self.get_serializer(project)
         return api_response(
             success=True,
