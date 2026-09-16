@@ -16,6 +16,7 @@ from django.http import HttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from crm.utils import api_response
+from .models import User
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -102,3 +103,42 @@ def verify_2fa_setup(request):
             errors={"code": "The code entered is incorrect or expired."},
             status_code=400
         )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    current_password = request.data.get('current_password', '')
+    new_password = request.data.get('new_password', '')
+
+    if not current_password or not new_password:
+        return api_response(
+            success=False,
+            message="Both current_password and new_password are required.",
+            errors={"detail": "Missing field(s)."},
+            status_code=400,
+        )
+
+    if len(new_password) < 8:
+        return api_response(
+            success=False,
+            message="New password must be at least 8 characters.",
+            errors={"new_password": ["Too short."]},
+            status_code=400,
+        )
+
+    if not request.user.check_password(current_password):
+        return api_response(
+            success=False,
+            message="Current password is incorrect.",
+            errors={"current_password": ["Incorrect."]},
+            status_code=400,
+        )
+
+    request.user.set_password(new_password)
+    request.user.save()
+    return api_response(
+        success=True,
+        message="Password updated successfully.",
+        data=None,
+        status_code=200,
+    )
