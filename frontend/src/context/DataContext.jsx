@@ -4,17 +4,14 @@ import * as api from "../services/api";
 const DataContext = createContext(null);
 
 /**
- * Owns auth state (JWT session) and every CRM collection, all backed by
- * the real Django API — see src/services/api.js for the endpoints. On
- * mount it tries to restore a session from a stored access token; once
- * signed in, it loads all collections and the two dashboard aggregate
- * endpoints once, and exposes setters so views can update local state
- * from what the backend returns on create/update rather than refetching
- * everything.
+ * Holds auth state (currentUser) plus all CRM collections, loaded from the
+ * real API once someone is logged in. Nothing is fetched before login,
+ * since every endpoint requires a valid token.
  */
 export function DataProvider({ children }) {
-  const [authUser, setAuthUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authError, setAuthError] = useState("");
 
   const [users, setUsers] = useState([]);
   const [leads, setLeads] = useState([]);
@@ -22,111 +19,103 @@ export function DataProvider({ children }) {
   const [projects, setProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [invoices, setInvoices] = useState([]);
-  const [dashboardStats, setDashboardStats] = useState(null);
-  const [revenueReport, setRevenueReport] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [activity, setActivity] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const [dataLoading, setDataLoading] = useState(false);
-  const [dataError, setDataError] = useState("");
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  // Enrich clients with the project/invoice ids that reference them —
+  // the Client API doesn't return these arrays directly, so ClientsView's
+  // existing `client.projects.includes(...)` checks are backed by this.
+  const enrichClients = useCallback((clientsList, projectsList, invoicesList) => {
+    return clientsList.map((c) => ({
+      ...c,
+      projects: projectsList.filter((p) => p.client === c.id).map((p) => p.id),
+      invoices: invoicesList.filter((i) => i.client === c.id).map((i) => i.id),
+    }));
+  }, []);
 
   const loadAll = useCallback(async () => {
-    setDataLoading(true);
-    setDataError("");
+    setLoading(true);
     try {
-      const [u, l, c, p, t, i] = await Promise.all([
+      const [u, l, c, p, t, i, n, a] = await Promise.all([
         api.getUsers(),
         api.getLeads(),
         api.getClients(),
         api.getProjects(),
         api.getTasks(),
         api.getInvoices(),
+        api.getNotifications(),
+        api.getActivity(),
       ]);
       setUsers(u);
       setLeads(l);
-      setClients(c);
+      setClients(enrichClients(c, p, i));
       setProjects(p);
       setTasks(t);
       setInvoices(i);
-      // Dashboard aggregates are non-fatal — the dashboards fall back to
-      // computing what they can from the collections above if this fails.
-      try {
-        const [stats, revenue] = await Promise.all([api.getDashboardStats(), api.getRevenueReport()]);
-        setDashboardStats(stats);
-        setRevenueReport(revenue);
-      } catch {
-        setDashboardStats(null);
-        setRevenueReport(null);
-      }
+      setNotifications(n);
+      setActivity(a);
     } catch (err) {
-      setDataError(api.getErrorMessage(err));
+      console.error("Failed to load CRM data:", err);
     } finally {
-      setDataLoading(false);
-      setHasLoadedOnce(true);
+      setLoading(false);
     }
-  }, []);
+  }, [enrichClients]);
 
-  // Restore session from a stored token on first load.
+  // On first mount, if a token is already stored, try to restore the
+  // session by fetching the current user before loading any CRM data.
   useEffect(() => {
     (async () => {
-      if (api.hasToken()) {
+      if (api.isAuthenticated()) {
         try {
-          const me = await api.getMe();
-          setAuthUser(me);
+          const me = await api.fetchCurrentUser();
+          setCurrentUser(me);
         } catch {
-          api.clearTokens();
+          api.logout();
         }
       }
-      setAuthLoading(false);
+      setAuthChecked(true);
     })();
   }, []);
 
   useEffect(() => {
-    if (authUser) loadAll();
-  }, [authUser, loadAll]);
+    if (currentUser) loadAll();
+  }, [currentUser, loadAll]);
 
   const login = useCallback(async (username, password) => {
-    const me = await api.login(username, password); // throws ApiError on bad credentials
-    setAuthUser(me);
-    return me;
+    setAuthError("");
+    try {
+      const user = await api.login(username, password);
+      setCurrentUser(user);
+      return true;
+    } catch (err) {
+      setAuthError(
+        err.response?.data?.errors?.detail ||
+        err.response?.data?.message ||
+        "Invalid username or password."
+      );
+      return false;
+    }
   }, []);
 
   const logout = useCallback(() => {
-    api.clearTokens();
-    setAuthUser(null);
-    setUsers([]);
-    setLeads([]);
-    setClients([]);
-    setProjects([]);
-    setTasks([]);
-    setInvoices([]);
-    setDashboardStats(null);
-    setRevenueReport(null);
-    setHasLoadedOnce(false);
+    api.logout();
+    setCurrentUser(null);
+    setUsers([]); setLeads([]); setClients([]); setProjects([]);
+    setTasks([]); setInvoices([]); setNotifications([]); setActivity([]);
   }, []);
 
   const value = {
-    authUser,
-    authLoading,
-    login,
-    logout,
-    users,
-    setUsers,
-    leads,
-    setLeads,
-    clients,
-    setClients,
-    projects,
-    setProjects,
-    tasks,
-    setTasks,
-    invoices,
-    setInvoices,
-    dashboardStats,
-    revenueReport,
-    dataLoading,
-    dataError,
-    hasLoadedOnce,
-    reload: loadAll,
+    currentUser, authChecked, authError, login, logout,
+    users, setUsers,
+    leads, setLeads,
+    clients, setClients,
+    projects, setProjects,
+    tasks, setTasks,
+    invoices, setInvoices,
+    notifications, setNotifications,
+    activity, setActivity,
+    loading,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
