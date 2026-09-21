@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { User, Circle, PauseCircle, CheckCircle2, AlertCircle } from "lucide-react";
+import { ListChecks, User, Circle, PauseCircle, CheckCircle2, AlertCircle, Pencil, Trash2 } from "lucide-react";
 import SectionHeader from "../components/common/SectionHeader";
 import Toolbar from "../components/common/Toolbar";
 import Modal from "../components/common/Modal";
@@ -9,117 +9,87 @@ import Avatar from "../components/common/Avatar";
 import EmptyState from "../components/common/EmptyState";
 import { PrimaryButton, GhostButton } from "../components/common/Buttons";
 import { useData } from "../context/DataContext";
-import { TASK_PRIORITY_META, TASK_STATUS_META, metaOptions } from "../data/choices";
+import { TASK_PRIORITIES, TASK_STATUSES, PRIORITY_STYLES } from "../data/mockData";
 import * as api from "../services/api";
 
-const TASK_PRIORITY_OPTIONS = metaOptions(TASK_PRIORITY_META);
-const TASK_STATUS_OPTIONS = metaOptions(TASK_STATUS_META);
-const TASK_STATUS_ICON = { PENDING: Circle, IN_PROGRESS: PauseCircle, COMPLETED: CheckCircle2, OVERDUE: AlertCircle };
-const LINK_TYPES = [
-  { value: "none", label: "Nothing (internal)" },
-  { value: "lead", label: "A lead" },
-  { value: "client", label: "A client" },
-  { value: "project", label: "A project" },
-];
-
-function NewTaskModal({ onClose, onCreate }) {
-  const { users, leads, clients, projects } = useData();
-  const [linkType, setLinkType] = useState("none");
-  const [linkId, setLinkId] = useState("");
+function TaskFormModal({ title, submitLabel, initial, showStatus, onClose, onSubmit }) {
+  const { users } = useData();
+  const assignableUsers = users.filter((u) => u.role !== "Accountant");
   const [form, setForm] = useState({
-    title: "", description: "", assigned_to: "", due_date: "",
-    priority: "MEDIUM", is_recurring: false, recurrence_pattern: "",
+    title: "", type: "Lead", ref: "", assignee: assignableUsers[0]?.id || "",
+    due: "", priority: "Medium", recurring: false, status: "Pending",
+    ...initial,
   });
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
-  const linkOptions = linkType === "lead" ? leads : linkType === "client" ? clients : linkType === "project" ? projects : [];
-  const linkLabel = (item) =>
-    linkType === "lead" ? item.name : linkType === "client" ? (item.company_name || item.name) : item.name;
-
-  const submit = async () => {
-    setSaving(true);
+  const handleSubmit = async () => {
+    if (!form.title.trim()) { setError("Task title is required."); return; }
     setError("");
-    const payload = {
-      ...form,
-      assigned_to: form.assigned_to || null,
-      lead: linkType === "lead" && linkId ? Number(linkId) : null,
-      client: linkType === "client" && linkId ? Number(linkId) : null,
-      project: linkType === "project" && linkId ? Number(linkId) : null,
-    };
+    setSaving(true);
     try {
-      await onCreate(payload);
+      await onSubmit(form);
     } catch (err) {
-      setError(api.getErrorMessage(err));
+      const backendErrors = err.response?.data?.errors;
+      const message = backendErrors
+        ? Object.values(backendErrors).flat().join(" ")
+        : "Couldn't save the task. Please try again.";
+      setError(message);
+    } finally {
       setSaving(false);
     }
   };
 
   return (
     <Modal
-      title="Create task"
+      title={title}
       onClose={onClose}
-      footer={
-        <>
-          <GhostButton onClick={onClose}>Cancel</GhostButton>
-          <button className="btn-primary" disabled={!form.title || saving} onClick={submit}>
-            {saving ? "Creating…" : "Create task"}
-          </button>
-        </>
-      }
+      footer={<><GhostButton onClick={onClose}>Cancel</GhostButton><button className="btn-primary" disabled={!form.title.trim() || saving} onClick={handleSubmit}>{saving ? "Saving…" : submitLabel}</button></>}
     >
-      {error && <div className="login-error">{error}</div>}
+      {error && <div className="form-error">{error}</div>}
       <div className="form-grid">
         <Field label="Task title"><input value={form.title} onChange={set("title")} /></Field>
+        <Field label="Associated with">
+          <select value={form.type} onChange={set("type")}>{["Lead", "Client", "Project", "Internal"].map((s) => <option key={s}>{s}</option>)}</select>
+        </Field>
         <Field label="Assignee">
-          <select value={form.assigned_to} onChange={set("assigned_to")}>
-            <option value="">Unassigned</option>
-            {users.map((u) => <option key={u.id} value={u.id}>{u.username}</option>)}
-          </select>
+          <select value={form.assignee} onChange={set("assignee")}>{assignableUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
         </Field>
-        <Field label="Link to">
-          <select value={linkType} onChange={(e) => { setLinkType(e.target.value); setLinkId(""); }}>
-            {LINK_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+        <Field label="Due date"><input type="date" value={form.due} onChange={set("due")} /></Field>
+        <Field label="Priority">
+          <select value={form.priority} onChange={set("priority")}>{TASK_PRIORITIES.map((s) => <option key={s}>{s}</option>)}</select>
         </Field>
-        {linkType !== "none" && (
-          <Field label={`Which ${linkType}`}>
-            <select value={linkId} onChange={(e) => setLinkId(e.target.value)}>
-              <option value="">Select…</option>
-              {linkOptions.map((item) => <option key={item.id} value={item.id}>{linkLabel(item)}</option>)}
-            </select>
+        {showStatus && (
+          <Field label="Status">
+            <select value={form.status} onChange={set("status")}>{TASK_STATUSES.map((s) => <option key={s}>{s}</option>)}</select>
           </Field>
         )}
-        <Field label="Due date"><input type="date" value={form.due_date} onChange={set("due_date")} /></Field>
-        <Field label="Priority">
-          <select value={form.priority} onChange={set("priority")}>
-            {TASK_PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </Field>
         <Field label="Recurring">
-          <select value={form.is_recurring} onChange={(e) => setForm({ ...form, is_recurring: e.target.value === "true" })}>
+          <select value={form.recurring} onChange={(e) => setForm({ ...form, recurring: e.target.value === "true" })}>
             <option value="false">One-time</option>
             <option value="true">Recurring</option>
           </select>
         </Field>
-        {form.is_recurring && (
-          <Field label="Recurrence"><input value={form.recurrence_pattern} onChange={set("recurrence_pattern")} placeholder="e.g. weekly" /></Field>
-        )}
       </div>
-      <Field label="Description"><textarea rows={2} value={form.description} onChange={set("description")} /></Field>
     </Modal>
   );
 }
 
+const TASK_STATUS_ICON = { Pending: Circle, "In Progress": PauseCircle, Completed: CheckCircle2, Overdue: AlertCircle };
+
 export default function TasksView({ currentUser }) {
-  const { tasks, setTasks, users } = useData();
+  const { tasks, users, setTasks } = useData();
   const [query, setQuery] = useState("");
   const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [priorityFilter, setPriorityFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [assigneeFilter, setAssigneeFilter] = useState("All");
   const [mineOnly, setMineOnly] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+
+  const assignableUsers = users.filter((u) => u.role !== "Accountant");
 
   const filtered = tasks.filter((t) => {
     const q = query.toLowerCase();
@@ -127,34 +97,50 @@ export default function TasksView({ currentUser }) {
     const matchP = priorityFilter === "All" || t.priority === priorityFilter;
     const matchS = statusFilter === "All" || t.status === statusFilter;
     const matchMine = mineOnly
-      ? t.assigned_to === currentUser.id
-      : assigneeFilter === "All" || String(t.assigned_to) === assigneeFilter;
+      ? t.assignee === currentUser.id
+      : assigneeFilter === "All" || t.assignee === assigneeFilter;
     return matchQ && matchP && matchS && matchMine;
   });
 
-  const linkedLabel = (t) => {
-    if (t.lead) return { type: "Lead", name: t.lead_name };
-    if (t.client) return { type: "Client", name: t.client_name };
-    if (t.project) return { type: "Project", name: t.project_name };
-    return { type: "Internal", name: "—" };
+  // Previously this updated local state optimistically without waiting for
+  // (or checking) the API call, so a failed/expired-token request would
+  // silently revert on the next refresh with no error shown. Now it waits
+  // for the real response and only commits on success.
+  const cycleStatus = async (id) => {
+    const task = tasks.find((t) => t.id === id);
+    const order = ["Pending", "In Progress", "Completed"];
+    const idx = order.indexOf(task.status);
+    const next = idx === -1 ? "Pending" : order[(idx + 1) % order.length];
+    setBusyId(id);
+    try {
+      const updated = await api.updateTaskStatus(id, next);
+      setTasks(tasks.map((t) => (t.id === id ? updated : t)));
+    } catch {
+      window.alert("Couldn't update the task status. Please try again.");
+    } finally {
+      setBusyId(null);
+    }
   };
 
-  const handleCreate = async (payload) => {
-    const created = await api.createTask(payload);
+  const handleCreate = async (form) => {
+    const created = await api.createTask(form);
     setTasks([created, ...tasks]);
     setShowNew(false);
   };
 
-  const cycleStatus = async (task) => {
-    const order = ["PENDING", "IN_PROGRESS", "COMPLETED"];
-    const idx = order.indexOf(task.status);
-    const next = idx === -1 ? "PENDING" : order[(idx + 1) % order.length];
-    const prev = tasks;
-    setTasks(tasks.map((t) => (t.id === task.id ? { ...t, status: next } : t)));
+  const handleUpdate = async (form) => {
+    const updated = await api.updateTask(editing.id, form);
+    setTasks(tasks.map((t) => (t.id === updated.id ? updated : t)));
+    setEditing(null);
+  };
+
+  const handleDelete = async (task) => {
+    if (!window.confirm(`Delete task "${task.title}"? This cannot be undone.`)) return;
     try {
-      await api.updateTask(task.id, { status: next });
+      await api.deleteTask(task.id);
+      setTasks(tasks.filter((t) => t.id !== task.id));
     } catch {
-      setTasks(prev);
+      window.alert("Couldn't delete this task. Please try again.");
     }
   };
 
@@ -170,15 +156,20 @@ export default function TasksView({ currentUser }) {
           <>
             <select className="filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="All">All statuses</option>
-              {TASK_STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {TASK_STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
             <select className="filter-select" value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}>
               <option value="All">All priorities</option>
-              {TASK_PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {TASK_PRIORITIES.map((p) => <option key={p}>{p}</option>)}
             </select>
-            <select className="filter-select" value={assigneeFilter} disabled={mineOnly} onChange={(e) => setAssigneeFilter(e.target.value)}>
+            <select
+              className="filter-select"
+              value={assigneeFilter}
+              disabled={mineOnly}
+              onChange={(e) => setAssigneeFilter(e.target.value)}
+            >
               <option value="All">All assignees</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.username}</option>)}
+              {assignableUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
             <button className={"filter-toggle" + (mineOnly ? " active" : "")} onClick={() => setMineOnly(!mineOnly)}>
               <User size={13} /> My tasks
@@ -190,36 +181,49 @@ export default function TasksView({ currentUser }) {
 
       <div className="table-card">
         <table>
-          <thead><tr><th></th><th>Task</th><th>Linked to</th><th>Assignee</th><th>Priority</th><th>Due</th><th>Status</th></tr></thead>
+          <thead><tr><th></th><th>Task</th><th>Linked to</th><th>Assignee</th><th>Priority</th><th>Due</th><th>Status</th><th></th></tr></thead>
           <tbody>
             {filtered.map((t) => {
               const StatusIcon = TASK_STATUS_ICON[t.status] || Circle;
-              const link = linkedLabel(t);
               return (
                 <tr key={t.id}>
                   <td>
-                    <button className="check-btn" onClick={() => cycleStatus(t)}>
-                      <StatusIcon size={16} color={t.status === "COMPLETED" ? "#0F9E8F" : t.status === "OVERDUE" ? "#DC4C42" : "#8A93A6"} />
+                    <button className="check-btn" disabled={busyId === t.id} onClick={() => cycleStatus(t.id)}>
+                      <StatusIcon size={16} color={t.status === "Completed" ? "#0F9E8F" : t.status === "Overdue" ? "#DC4C42" : "#8A93A6"} />
                     </button>
                   </td>
                   <td>
-                    <div className={"cell-strong" + (t.status === "COMPLETED" ? " strikethrough" : "")}>{t.title}</div>
-                    <div className="cell-id">#{t.id}{t.is_recurring ? ` · Recurring${t.recurrence_pattern ? ` (${t.recurrence_pattern})` : ""}` : ""}</div>
+                    <div className={"cell-strong" + (t.status === "Completed" ? " strikethrough" : "")}>{t.title}</div>
+                    <div className="cell-id">{t.id}{t.recurring ? " · Recurring" : ""}</div>
                   </td>
-                  <td><span className="tag-chip">{link.type} · {link.name}</span></td>
-                  <td>{t.assigned_to ? <Avatar userId={t.assigned_to} size={24} /> : <span className="dim-text">—</span>}</td>
-                  <td><Pill code={t.priority} meta={TASK_PRIORITY_META} /></td>
-                  <td className="mono-cell">{t.due_date || "—"}</td>
-                  <td><Pill code={t.status} meta={TASK_STATUS_META} /></td>
+                  <td><span className="tag-chip">{t.type} · {t.ref}</span></td>
+                  <td><Avatar userId={t.assignee} size={24} /></td>
+                  <td><Pill label={t.priority} styleMap={PRIORITY_STYLES} /></td>
+                  <td className="mono-cell">{t.due}</td>
+                  <td><Pill label={t.status} /></td>
+                  <td>
+                    <button className="icon-btn" title="Edit" onClick={() => setEditing(t)}><Pencil size={14} /></button>
+                    <button className="icon-btn" title="Delete" onClick={() => handleDelete(t)}><Trash2 size={14} /></button>
+                  </td>
                 </tr>
               );
             })}
-            {filtered.length === 0 && <tr><td colSpan={7}><EmptyState icon={AlertCircle} text="No tasks match your filters." /></td></tr>}
+            {filtered.length === 0 && <tr><td colSpan={8}><EmptyState icon={ListChecks} text="No tasks match your filters." /></td></tr>}
           </tbody>
         </table>
       </div>
 
-      {showNew && <NewTaskModal onClose={() => setShowNew(false)} onCreate={handleCreate} />}
+      {showNew && <TaskFormModal title="Create task" submitLabel="Create task" onClose={() => setShowNew(false)} onSubmit={handleCreate} />}
+      {editing && (
+        <TaskFormModal
+          title="Edit task"
+          submitLabel="Save changes"
+          initial={editing}
+          showStatus
+          onClose={() => setEditing(null)}
+          onSubmit={handleUpdate}
+        />
+      )}
     </div>
   );
 }

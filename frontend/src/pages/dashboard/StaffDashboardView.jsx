@@ -4,7 +4,7 @@ import SectionHeader from "../../components/common/SectionHeader";
 import StatCard from "../../components/common/StatCard";
 import Pill from "../../components/common/Pill";
 import { useData } from "../../context/DataContext";
-import { TASK_STATUS_META, TASK_PRIORITY_META, LEAD_STATUS_META, PROJECT_STATUS_META } from "../../data/choices";
+import { TASK_STATUSES, TASK_PRIORITIES, LEAD_STATUSES, PRIORITY_STYLES } from "../../data/mockData";
 
 /**
  * General Staff never see client records, invoices, or revenue — this
@@ -19,12 +19,12 @@ export default function StaffDashboardView({ currentUser, onNavigate }) {
   const [leadStatusFilter, setLeadStatusFilter] = useState("All");
   const [focusWindow, setFocusWindow] = useState("Today");
 
-  const myTasksAll = tasks.filter((t) => t.assigned_to === currentUser.id);
-  const myLeadsAll = leads.filter((l) => l.assigned_employee === currentUser.id);
-  const myProjects = projects.filter((p) => (p.assigned_employees || []).includes(currentUser.id));
+  const myTasksAll = tasks.filter((t) => t.assignee === currentUser.id);
+  const myLeadsAll = leads.filter((l) => l.owner === currentUser.id);
+  const myProjects = projects.filter((p) => p.team.includes(currentUser.id));
 
-  const openTasks = myTasksAll.filter((t) => t.status !== "COMPLETED");
-  const overdueTasks = myTasksAll.filter((t) => t.status === "OVERDUE");
+  const openTasks = myTasksAll.filter((t) => t.status !== "Completed");
+  const overdueTasks = myTasksAll.filter((t) => t.status === "Overdue");
 
   const myTasksFiltered = useMemo(
     () => myTasksAll.filter((t) => taskStatusFilter === "All" || t.status === taskStatusFilter),
@@ -37,20 +37,22 @@ export default function StaffDashboardView({ currentUser, onNavigate }) {
   );
 
   const focusTasks = useMemo(() => {
+    const REFERENCE = "2026-08-21";
     const horizonDays = focusWindow === "Today" ? 0 : 7;
-    const ref = new Date();
+    const ref = new Date(REFERENCE);
     return myTasksAll
-      .filter((t) => t.status !== "COMPLETED" && t.due_date)
+      .filter((t) => t.status !== "Completed")
       .filter((t) => {
-        const diff = Math.round((new Date(t.due_date) - ref) / (1000 * 60 * 60 * 24));
+        const due = new Date(t.due);
+        const diff = Math.round((due - ref) / (1000 * 60 * 60 * 24));
         return diff <= horizonDays;
       })
-      .sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""));
+      .sort((a, b) => a.due.localeCompare(b.due));
   }, [myTasksAll, focusWindow]);
 
   return (
     <div>
-      <SectionHeader eyebrow={`Welcome back, ${currentUser.username}`} title="My dashboard" />
+      <SectionHeader eyebrow={`Welcome back, ${currentUser.name.split(" ")[0]}`} title="My dashboard" />
 
       <div className="scope-banner">
         <Users size={15} color="#4C6FEF" />
@@ -73,14 +75,9 @@ export default function StaffDashboardView({ currentUser, onNavigate }) {
               <option>This week</option>
             </select>
             {onNavigate && (
-              <>
-                <button className="panel-link-btn" onClick={() => onNavigate("calendar")}>
-                  Calendar <ArrowUpRight size={12} />
-                </button>
-                <button className="panel-link-btn" onClick={() => onNavigate("tasks")}>
-                  View all tasks <ArrowUpRight size={12} />
-                </button>
-              </>
+              <button className="panel-link-btn" onClick={() => onNavigate("tasks")}>
+                View all tasks <ArrowUpRight size={12} />
+              </button>
             )}
           </div>
         </div>
@@ -89,9 +86,9 @@ export default function StaffDashboardView({ currentUser, onNavigate }) {
             <div className="mini-row" key={t.id}>
               <div className="mini-row-main">
                 <span className="mini-row-title">{t.title}</span>
-                <span className="mini-row-sub">Due {t.due_date}</span>
+                <span className="mini-row-sub">Due {t.due} · {t.type} · {t.ref}</span>
               </div>
-              <Pill code={t.priority} meta={TASK_PRIORITY_META} />
+              <Pill label={t.priority} styleMap={PRIORITY_STYLES} />
             </div>
           ))}
           {focusTasks.length === 0 && <span className="muted-note">Nothing due in this window — you're all caught up.</span>}
@@ -103,8 +100,8 @@ export default function StaffDashboardView({ currentUser, onNavigate }) {
           <div className="panel-card-filters">
             <h3 style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 14.5 }}>My tasks</h3>
             <select className="select-sm" value={taskStatusFilter} onChange={(e) => setTaskStatusFilter(e.target.value)}>
-              <option value="All">All statuses</option>
-              {Object.entries(TASK_STATUS_META).map(([code, m]) => <option key={code} value={code}>{m.label}</option>)}
+              <option>All</option>
+              {TASK_STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div>
@@ -112,9 +109,9 @@ export default function StaffDashboardView({ currentUser, onNavigate }) {
               <div className="mini-row" key={t.id}>
                 <div className="mini-row-main">
                   <span className="mini-row-title">{t.title}</span>
-                  <span className="mini-row-sub">Due {t.due_date || "—"}</span>
+                  <span className="mini-row-sub">Due {t.due}</span>
                 </div>
-                <Pill code={t.status} meta={TASK_STATUS_META} />
+                <Pill label={t.status} />
               </div>
             ))}
             {myTasksFiltered.length === 0 && <span className="muted-note">No tasks in this filter.</span>}
@@ -125,8 +122,8 @@ export default function StaffDashboardView({ currentUser, onNavigate }) {
           <div className="panel-card-filters">
             <h3 style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 14.5 }}>My leads</h3>
             <select className="select-sm" value={leadStatusFilter} onChange={(e) => setLeadStatusFilter(e.target.value)}>
-              <option value="All">All statuses</option>
-              {Object.entries(LEAD_STATUS_META).map(([code, m]) => <option key={code} value={code}>{m.label}</option>)}
+              <option>All</option>
+              {LEAD_STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div>
@@ -134,9 +131,9 @@ export default function StaffDashboardView({ currentUser, onNavigate }) {
               <div className="mini-row" key={l.id}>
                 <div className="mini-row-main">
                   <span className="mini-row-title">{l.name}</span>
-                  <span className="mini-row-sub">{l.company || "—"} · {l.service_interested_in || "—"}</span>
+                  <span className="mini-row-sub">{l.company} · {l.service}</span>
                 </div>
-                <Pill code={l.status} meta={LEAD_STATUS_META} />
+                <Pill label={l.status} />
               </div>
             ))}
             {myLeadsFiltered.length === 0 && <span className="muted-note">No leads in this filter.</span>}
@@ -152,12 +149,12 @@ export default function StaffDashboardView({ currentUser, onNavigate }) {
         <div className="card-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
           {myProjects.map((p) => (
             <div key={p.id} className="board-card" style={{ cursor: "default" }}>
-              <div className="board-card-id">#{p.id}</div>
+              <div className="board-card-id">{p.id}</div>
               <div className="board-card-title">{p.name}</div>
-              <div className="board-card-service">{p.service || "—"}</div>
+              <div className="board-card-service">{p.service}</div>
               <div className="board-card-foot">
-                <Pill code={p.status} meta={PROJECT_STATUS_META} />
-                <span className="board-card-date">Due {p.deadline || "—"}</span>
+                <Pill label={p.status} />
+                <span className="board-card-date">Due {p.deadline}</span>
               </div>
             </div>
           ))}
