@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Target, Users2, FolderKanban, ListChecks, Receipt,
-  ShieldCheck, Menu, History, BarChart3, Settings, CalendarDays,
+  ShieldCheck, Menu, History,
 } from "lucide-react";
 import { NAV_ITEMS } from "../../data/mockData";
 
@@ -10,15 +10,10 @@ const ICONS = {
   clients: Users2,
   projects: FolderKanban,
   tasks: ListChecks,
-  calendar: CalendarDays,
   invoices: Receipt,
-  reports: BarChart3,
   audit: History,
   users: ShieldCheck,
-  settings: Settings,
 };
-
-import { ROLE_META } from "../../data/choices";
 
 export default function Sidebar({ view, setView, role, collapsed, setCollapsed }) {
   const items = NAV_ITEMS.filter((i) => i.roles.includes(role));
@@ -56,7 +51,7 @@ export default function Sidebar({ view, setView, role, collapsed, setCollapsed }
       {!collapsed && (
         <div className="sidebar-role-badge">
           <ShieldCheck size={13} />
-          <span>{ROLE_META[role]?.label || role}</span>
+          <span>{role}</span>
         </div>
       )}
     </div>
