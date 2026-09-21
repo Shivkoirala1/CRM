@@ -1,131 +1,156 @@
 /* =========================================================================
    API service layer — talks to the real Django REST backend.
 
-   Every list/detail endpoint here wraps its response as
-   { success, message, data, errors } (see backend/crm/utils.py
-   api_response / custom_exception_handler); unwrap() below pulls out
-   .data on success and throws an ApiError carrying the backend's own
-   message/errors on failure. Auth endpoints (/token/, /token/refresh/)
-   are stock SimpleJWT views and return { access, refresh } directly, so
-   they're handled separately.
+   Every function returns data already translated into the shape the UI
+   components expect (see adapters.js). Errors are NOT swallowed with mock
+   data anymore — they're thrown so the caller (DataContext) can decide
+   what to do, and so real problems show up in the console instead of
+   silently showing fake data.
    ========================================================================= */
 
-import axiosClient, { setTokens, clearTokens, hasToken } from "./axiosClient";
+import axiosClient, { tokenStorage } from "./axiosClient";
+import {
+  adaptUser, adaptLead, toBackendLead, adaptClient, toBackendClient,
+  adaptProject, toBackendProject, adaptTask, toBackendTask, taskStatusToBackend,
+  adaptInvoice, toBackendInvoice, adaptNotification, adaptActivity,
+} from "./adapters";
 
-export class ApiError extends Error {
-  constructor(message, errors) {
-    super(message);
-    this.name = "ApiError";
-    this.errors = errors;
-  }
-}
+// Every real response is wrapped as { success, message, data, errors }.
+// unwrap() pulls out the actual payload; unwrapList() also defaults to [].
+const unwrap = (res) => res.data.data;
+const unwrapList = (res) => res.data.data || [];
 
-function unwrap(response) {
-  const body = response.data;
-  if (body && typeof body === "object" && "success" in body) {
-    if (!body.success) throw new ApiError(body.message || "Request failed.", body.errors);
-    return body.data;
-  }
-  return body;
-}
-
-/** Turns any axios/ApiError into a single readable string for forms/toasts. */
-export function getErrorMessage(err) {
-  if (err instanceof ApiError) {
-    if (err.errors && typeof err.errors === "object") {
-      const firstField = Object.keys(err.errors)[0];
-      const firstMsg = Array.isArray(err.errors[firstField]) ? err.errors[firstField][0] : err.errors[firstField];
-      if (firstField && firstMsg) return `${firstField}: ${firstMsg}`;
-    }
-    return err.message;
-  }
-  const data = err?.response?.data;
-  if (data?.message) return data.message;
-  if (data?.errors) {
-    const firstField = Object.keys(data.errors)[0];
-    const firstMsg = Array.isArray(data.errors[firstField]) ? data.errors[firstField][0] : data.errors[firstField];
-    if (firstField && firstMsg) return `${firstField}: ${firstMsg}`;
-  }
-  if (err?.code === "ECONNABORTED" || err?.message === "Network Error") {
-    return "Couldn't reach the server. Is the Django backend running?";
-  }
-  return err?.message || "Something went wrong.";
-}
-
-/* ---------------------------- Auth ------------------------------------- */
-export { hasToken, clearTokens };
-
-// POST /api/token/  { username, password } -> { access, refresh }  (unwrapped, stock SimpleJWT)
+/* ---------------------------- Auth ------------------------------------ */
+// POST /token/  { username, password } -> { access, refresh }
+// Then GET /me/ to get the profile (role, etc.) for the logged-in user.
 export async function login(username, password) {
   const { data } = await axiosClient.post("/token/", { username, password });
-  setTokens(data);
-  return getMe();
+  tokenStorage.set(data.access, data.refresh);
+  const me = await axiosClient.get("/me/");
+  return adaptUser(unwrap(me));
 }
 
-// GET /api/me/
-export const getMe = () => axiosClient.get("/me/").then(unwrap);
+export function logout() {
+  tokenStorage.clear();
+}
 
-// POST /api/me/change-password/ { current_password, new_password }
-// ADDED FOR FRONTEND INTEGRATION — see backend CHANGES_LOG.md.
-export const changeMyPassword = (currentPassword, newPassword) =>
-  axiosClient
-    .post("/me/change-password/", { current_password: currentPassword, new_password: newPassword })
-    .then(unwrap);
+export function isAuthenticated() {
+  return !!tokenStorage.getAccess();
+}
 
-/* ---------------------------- Users -------------------------------------
-   GET /api/users/ — added on the backend for this integration; see
-   CHANGES_LOG.md. Read-only: there is no create/update/delete-user API,
-   accounts are managed via the Django admin.
-   ------------------------------------------------------------------------ */
-export const getUsers = () => axiosClient.get("/users/").then(unwrap);
+export async function fetchCurrentUser() {
+  const res = await axiosClient.get("/me/");
+  return adaptUser(unwrap(res));
+}
 
-/* ---------------------------- Leads -------------------------------------
-   GET/POST /api/leads/   GET/PATCH/DELETE /api/leads/:id/
-   DELETE archives (is_archived=True) rather than hard-deleting.
-   ------------------------------------------------------------------------ */
-export const getLeads = () => axiosClient.get("/leads/").then(unwrap);
-export const createLead = (payload) => axiosClient.post("/leads/", payload).then(unwrap);
-export const updateLead = (id, payload) => axiosClient.patch(`/leads/${id}/`, payload).then(unwrap);
-export const archiveLead = (id) => axiosClient.delete(`/leads/${id}/`).then(unwrap);
+/* ---------------------------- Leads ------------------------------------ */
+export const getLeads = async () => unwrapList(await axiosClient.get("/leads/")).map(adaptLead);
+export const createLead = async (form) =>
+  adaptLead(unwrap(await axiosClient.post("/leads/", toBackendLead(form))));
+export const updateLead = async (id, form) =>
+  adaptLead(unwrap(await axiosClient.patch(`/leads/${id}/`, toBackendLead(form))));
+export const deleteLead = async (id) => axiosClient.delete(`/leads/${id}/`);
 
-/* ---------------------------- Clients ------------------------------------ */
-export const getClients = () => axiosClient.get("/clients/").then(unwrap);
-export const createClient = (payload) => axiosClient.post("/clients/", payload).then(unwrap);
-export const updateClient = (id, payload) => axiosClient.patch(`/clients/${id}/`, payload).then(unwrap);
-export const archiveClient = (id) => axiosClient.delete(`/clients/${id}/`).then(unwrap);
-export const getClientPaymentHistory = (id) => axiosClient.get(`/clients/${id}/payment-history/`).then(unwrap);
+/* ---------------------------- Clients ----------------------------------- */
+export const getClients = async () => unwrapList(await axiosClient.get("/clients/")).map(adaptClient);
+export const createClient = async (form) =>
+  adaptClient(unwrap(await axiosClient.post("/clients/", toBackendClient(form))));
+export const updateClient = async (id, form) =>
+  adaptClient(unwrap(await axiosClient.patch(`/clients/${id}/`, toBackendClient(form))));
+export const deleteClient = async (id) => axiosClient.delete(`/clients/${id}/`);
 
-/* ---------------------------- Projects ----------------------------------- */
-export const getProjects = () => axiosClient.get("/projects/").then(unwrap);
-export const createProject = (payload) => axiosClient.post("/projects/", payload).then(unwrap);
-export const updateProject = (id, payload) => axiosClient.patch(`/projects/${id}/`, payload).then(unwrap);
-export const archiveProject = (id) => axiosClient.delete(`/projects/${id}/`).then(unwrap);
-export const assignProjectEmployees = (id, employeeIds) =>
-  axiosClient.post(`/projects/${id}/assign-employees/`, { employee_ids: employeeIds }).then(unwrap);
+/* ---------------------------- Projects ---------------------------------- */
+export const getProjects = async () => unwrapList(await axiosClient.get("/projects/")).map(adaptProject);
+export const createProject = async (form) =>
+  adaptProject(unwrap(await axiosClient.post("/projects/", toBackendProject(form))));
+export const updateProject = async (id, form) =>
+  adaptProject(unwrap(await axiosClient.patch(`/projects/${id}/`, toBackendProject(form))));
+export const deleteProject = async (id) => axiosClient.delete(`/projects/${id}/`);
+export const assignProjectEmployees = async (id, employeeIds) =>
+  adaptProject(unwrap(await axiosClient.post(`/projects/${id}/assign-employees/`, {
+    employee_ids: employeeIds.map(Number),
+  })));
 
-/* ---------------------------- Tasks --------------------------------------
-   DELETE hard-deletes (tasks have no is_archived field on the backend).
-   ------------------------------------------------------------------------ */
-export const getTasks = () => axiosClient.get("/tasks/").then(unwrap);
-export const createTask = (payload) => axiosClient.post("/tasks/", payload).then(unwrap);
-export const updateTask = (id, payload) => axiosClient.patch(`/tasks/${id}/`, payload).then(unwrap);
-export const deleteTask = (id) => axiosClient.delete(`/tasks/${id}/`).then(unwrap);
+/* ---------------------------- Tasks ------------------------------------- */
+export const getTasks = async () => unwrapList(await axiosClient.get("/tasks/")).map(adaptTask);
+export const createTask = async (form) =>
+  adaptTask(unwrap(await axiosClient.post("/tasks/", toBackendTask(form))));
+export const updateTask = async (id, form) =>
+  adaptTask(unwrap(await axiosClient.patch(`/tasks/${id}/`, toBackendTask(form))));
+export const updateTaskStatus = async (id, status) =>
+  adaptTask(unwrap(await axiosClient.patch(`/tasks/${id}/`, { status: taskStatusToBackend(status) })));
+export const deleteTask = async (id) => axiosClient.delete(`/tasks/${id}/`);
 
-/* ---------------------------- Invoices ------------------------------------
-   invoice_number is required + unique and NOT auto-generated by the
-   backend — the frontend must supply one (see suggestInvoiceNumber in
-   InvoicesView.jsx).
-   ------------------------------------------------------------------------ */
-export const getInvoices = () => axiosClient.get("/invoices/").then(unwrap);
-export const createInvoice = (payload) => axiosClient.post("/invoices/", payload).then(unwrap);
-export const updateInvoice = (id, payload) => axiosClient.patch(`/invoices/${id}/`, payload).then(unwrap);
-export const archiveInvoice = (id) => axiosClient.delete(`/invoices/${id}/`).then(unwrap);
+/* ---------------------------- Invoices ----------------------------------- */
+export const getInvoices = async () => unwrapList(await axiosClient.get("/invoices/")).map(adaptInvoice);
+export const createInvoice = async (form) =>
+  adaptInvoice(unwrap(await axiosClient.post("/invoices/", toBackendInvoice(form))));
+export const updateInvoice = async (id, form) =>
+  adaptInvoice(unwrap(await axiosClient.patch(`/invoices/${id}/`, toBackendInvoice(form))));
+export const deleteInvoice = async (id) => axiosClient.delete(`/invoices/${id}/`);
 
-/* ---------------------------- Dashboard -----------------------------------
-   Both are fixed, non-filterable aggregates from the backend. Panels that
-   need a period/status filter (leads trend, revenue by service, etc.)
-   recompute client-side from the live leads/invoices/projects collections
-   instead — see src/utils/finance.js and src/utils/leads.js.
-   ------------------------------------------------------------------------ */
-export const getDashboardStats = () => axiosClient.get("/dashboard/stats/").then(unwrap);
-export const getRevenueReport = () => axiosClient.get("/dashboard/revenue/").then(unwrap);
+/* ---------------------------- Notifications / activity / users ---------- */
+export async function getNotifications() {
+  const res = await axiosClient.get("/notifications/");
+  const payload = unwrap(res) || { notifications: [] };
+  return (payload.notifications || []).map(adaptNotification);
+}
+
+export async function markNotificationRead(id) {
+  const res = await axiosClient.patch(`/notifications/${id}/`, { is_read: true });
+  return adaptNotification(unwrap(res));
+}
+
+export async function markAllNotificationsRead() {
+  await axiosClient.post("/notifications/mark-all-read/");
+}
+
+// Requires the /audit-logs/ endpoint — see the backend note in chat for
+// the two small files that expose it. Falls back to an empty list (rather
+// than crashing the page) if it isn't there yet.
+export async function getActivity() {
+  try {
+    const res = await axiosClient.get("/audit-logs/");
+    return unwrapList(res).map(adaptActivity);
+  } catch (err) {
+    console.warn("GET /audit-logs/ not available yet:", err.message);
+    return [];
+  }
+}
+
+// Requires the /users/ endpoint — see the backend note in chat.
+export async function getUsers() {
+  try {
+    const res = await axiosClient.get("/users/");
+    return unwrapList(res).map(adaptUser);
+  } catch (err) {
+    console.warn("GET /users/ not available yet:", err.message);
+    return [];
+  }
+}
+
+/* ---------------------------- File downloads ----------------------------- */
+// Protected endpoints need the Authorization header, so a plain <a href>
+// link won't work — the browser wouldn't attach the JWT. Instead we fetch
+// the file as a blob (axiosClient already attaches the token), then
+// trigger a save using a throwaway link element.
+function triggerBrowserDownload(blob, filename) {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+export async function exportLeadsExcel() {
+  const res = await axiosClient.get("/dashboard/export/leads/excel/", { responseType: "blob" });
+  triggerBrowserDownload(res.data, "leads_report.xlsx");
+}
+
+export async function exportLeadsPdf() {
+  const res = await axiosClient.get("/dashboard/export/leads/pdf/", { responseType: "blob" });
+  triggerBrowserDownload(res.data, "leads_report.pdf");
+}
