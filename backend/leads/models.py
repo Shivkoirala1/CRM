@@ -1,6 +1,6 @@
 from django.db import models
 from accounts.models import User
-
+from django.core.validators import RegexValidator
 
 class Lead(models.Model):
     class LeadSource(models.TextChoices):
@@ -19,7 +19,9 @@ class Lead(models.Model):
         LOST = 'LOST', 'Lost'
 
     name = models.CharField(max_length=255)
-    phone = models.CharField(max_length=20, blank=True, null=True)
+    phone = models.CharField(
+    max_length=10, blank=True, null=True,
+    validators=[RegexValidator(r'^\d{10}$', 'Phone number must be exactly 10 digits.')])
     email = models.EmailField(blank=True, null=True)
     company = models.CharField(max_length=255, blank=True, null=True)
     address = models.CharField(max_length=500, blank=True, null=True)

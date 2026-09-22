@@ -1,19 +1,3 @@
-"""
-URL configuration for crm project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -26,15 +10,16 @@ from tasks.views import TaskViewSet
 from invoices.views import InvoiceViewSet, client_payment_history
 from dashboard.views import dashboard_stats, revenue_report, export_leads_excel, export_leads_pdf, global_search
 from notifications.views import NotificationViewSet
-from accounts.views import me, CustomTokenObtainPairView, enable_2fa, verify_2fa_setup, list_users, change_password
+from audit.views import AuditLogViewSet
 
 router = DefaultRouter()
 router.register('leads', LeadViewSet, basename='lead')
 router.register('clients', ClientViewSet, basename='client')
-router.register('projects', ProjectViewSet, basename = 'project')
+router.register('projects', ProjectViewSet, basename='project')
 router.register('tasks', TaskViewSet, basename='task')
 router.register('invoices', InvoiceViewSet, basename='invoice')
 router.register('notifications', NotificationViewSet, basename='notification')
+router.register('audit-logs', AuditLogViewSet, basename='audit-log')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -52,5 +37,4 @@ urlpatterns = [
     path('api/search/', global_search, name='global-search'),
     path('api/2fa/enable/', enable_2fa, name='enable-2fa'),
     path('api/2fa/verify-setup/', verify_2fa_setup, name='verify-2fa-setup'),
-
 ]
