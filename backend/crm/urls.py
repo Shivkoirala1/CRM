@@ -2,7 +2,10 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
-from accounts.views import CustomTokenObtainPairView, me, enable_2fa, verify_2fa_setup, list_users, change_password
+from accounts.views import (
+    CustomTokenObtainPairView, me, enable_2fa, verify_2fa_setup,
+    list_users, change_password, set_supervisor,
+)
 from leads.views import LeadViewSet
 from clients.views import ClientViewSet
 from projects.views import ProjectViewSet
@@ -11,6 +14,7 @@ from invoices.views import InvoiceViewSet, client_payment_history
 from dashboard.views import dashboard_stats, revenue_report, export_leads_excel, export_leads_pdf, global_search
 from notifications.views import NotificationViewSet
 from audit.views import AuditLogViewSet
+from attendance.views import AttendanceViewSet
 
 router = DefaultRouter()
 router.register('leads', LeadViewSet, basename='lead')
@@ -20,6 +24,7 @@ router.register('tasks', TaskViewSet, basename='task')
 router.register('invoices', InvoiceViewSet, basename='invoice')
 router.register('notifications', NotificationViewSet, basename='notification')
 router.register('audit-logs', AuditLogViewSet, basename='audit-log')
+router.register('attendance', AttendanceViewSet, basename='attendance')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -27,6 +32,7 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/me/', me, name='me'),
     path('api/users/', list_users, name='list-users'),
+    path('api/users/<int:user_id>/set-supervisor/', set_supervisor, name='set-supervisor'),
     path('api/me/change-password/', change_password, name='change-password'),
     path('api/clients/<int:client_id>/payment-history/', client_payment_history, name='client-payment'),
     path('api/', include(router.urls)),

@@ -1,23 +1,20 @@
-from django.shortcuts import render
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from crm.utils import api_response
-from .serializers import UserSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from audit.models import AuditLog
-from audit.signals import get_client_ip
-from .models import User
 
 import pyotp
 import qrcode
 import io
 import base64
-from django.http import HttpResponse
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+
 from crm.utils import api_response
+from audit.models import AuditLog
+from audit.signals import get_client_ip
+from accounts.permissions import IsManagerOrAdmin
+from .serializers import UserSerializer
 from .models import User
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -29,6 +26,7 @@ def me(request):
         data=serializer.data,
         status_code=200
     )
+
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
@@ -47,7 +45,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
-#2FA 
+# --- 2FA ---
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def enable_2fa(request):
@@ -73,6 +71,7 @@ def enable_2fa(request):
             "manual_entry_key": user.otp_secret
         }
     )
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -105,6 +104,7 @@ def verify_2fa_setup(request):
             status_code=400
         )
 
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def change_password(request):
@@ -143,6 +143,7 @@ def change_password(request):
         data=None,
         status_code=200,
     )
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -156,41 +157,31 @@ def list_users(request):
     )
 
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def change_password(request):
-    current_password = request.data.get('current_password', '')
-    new_password = request.data.get('new_password', '')
-
-    if not current_password or not new_password:
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated, IsManagerOrAdmin])
+def set_supervisor(request, user_id):
+    """
+    Assigns (or clears, if supervisor is null/omitted) which Supervisor
+    manages a given employee — typically used to assign a Supervisor to
+    an Intern. Manager/Admin only.
+    """
+    try:
+        target = User.objects.get(id=user_id)
+    except User.DoesNotExist:
         return api_response(
             success=False,
-            message="Both current_password and new_password are required.",
-            errors={"detail": "Missing field(s)."},
-            status_code=400,
+            message="User not found.",
+            errors={"detail": "No such user."},
+            status_code=404
         )
 
-    if len(new_password) < 8:
-        return api_response(
-            success=False,
-            message="New password must be at least 8 characters.",
-            errors={"new_password": ["Too short."]},
-            status_code=400,
-        )
+    supervisor_id = request.data.get('supervisor')
+    target.supervisor_id = supervisor_id if supervisor_id else None
+    target.save()
 
-    if not request.user.check_password(current_password):
-        return api_response(
-            success=False,
-            message="Current password is incorrect.",
-            errors={"current_password": ["Incorrect."]},
-            status_code=400,
-        )
-
-    request.user.set_password(new_password)
-    request.user.save()
+    serializer = UserSerializer(target)
     return api_response(
         success=True,
-        message="Password updated successfully.",
-        data=None,
-        status_code=200,
+        message="Supervisor updated successfully.",
+        data=serializer.data
     )

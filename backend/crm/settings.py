@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'dashboard.apps.DashboardConfig',
     'notifications.apps.NotificationsConfig',
     'audit.apps.AuditConfig',
+    'attendance.apps.AttendanceConfig'
 ]
 
 MIDDLEWARE = [
