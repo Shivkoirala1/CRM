@@ -1,25 +1,11 @@
-"""
-URL configuration for crm project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
-from accounts.views import CustomTokenObtainPairView
-from accounts.views import me
+from accounts.views import (
+    CustomTokenObtainPairView, me, enable_2fa, verify_2fa_setup,
+    list_users, change_password, set_supervisor,
+)
 from leads.views import LeadViewSet
 from clients.views import ClientViewSet
 from projects.views import ProjectViewSet
@@ -27,21 +13,27 @@ from tasks.views import TaskViewSet
 from invoices.views import InvoiceViewSet, client_payment_history
 from dashboard.views import dashboard_stats, revenue_report, export_leads_excel, export_leads_pdf, global_search
 from notifications.views import NotificationViewSet
-from accounts.views import me, CustomTokenObtainPairView, enable_2fa, verify_2fa_setup
+from audit.views import AuditLogViewSet
+from attendance.views import AttendanceViewSet
 
 router = DefaultRouter()
 router.register('leads', LeadViewSet, basename='lead')
 router.register('clients', ClientViewSet, basename='client')
-router.register('projects', ProjectViewSet, basename = 'project')
+router.register('projects', ProjectViewSet, basename='project')
 router.register('tasks', TaskViewSet, basename='task')
 router.register('invoices', InvoiceViewSet, basename='invoice')
 router.register('notifications', NotificationViewSet, basename='notification')
+router.register('audit-logs', AuditLogViewSet, basename='audit-log')
+router.register('attendance', AttendanceViewSet, basename='attendance')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/me/', me, name='me'),
+    path('api/users/', list_users, name='list-users'),
+    path('api/users/<int:user_id>/set-supervisor/', set_supervisor, name='set-supervisor'),
+    path('api/me/change-password/', change_password, name='change-password'),
     path('api/clients/<int:client_id>/payment-history/', client_payment_history, name='client-payment'),
     path('api/', include(router.urls)),
     path('api/dashboard/stats/', dashboard_stats, name='dashboard-stats'),

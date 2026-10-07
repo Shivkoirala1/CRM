@@ -5,6 +5,7 @@ from crm.utils import api_response
 from accounts.permissions import IsManagerOrAdmin
 from audit.utils import log_action
 from audit.models import AuditLog
+from notifications.models import Notification
 from .models import Project
 from .serializers import ProjectSerializer
 
@@ -82,7 +83,15 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def assign_employees(self, request, pk=None):
         project = self.get_object()
         employee_ids = request.data.get('employee_ids', [])
+        previous_ids = set(project.assigned_employees.values_list('id', flat=True))
         project.assigned_employees.set(employee_ids)
+        newly_added_ids = {int(i) for i in employee_ids} - previous_ids
+        for employee_id in newly_added_ids:
+            Notification.objects.create(
+                recipient_id=employee_id,
+                notification_type=Notification.NotificationType.PROJECT_UPDATE,
+                message=f"You've been added to the project team: {project.name}"
+            )
         log_action(request, AuditLog.ActionType.UPDATE, project, f"Assigned employees to project: {project.name}")
         serializer = self.get_serializer(project)
         return api_response(

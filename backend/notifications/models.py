@@ -12,6 +12,7 @@ class Notification(models.Model):
         PAYMENT_OVERDUE = 'PAYMENT_OVERDUE', 'Overdue Payment'
         RENEWAL_DUE = 'RENEWAL_DUE', 'Upcoming Renewal'
         PROJECT_UPDATE = 'PROJECT_UPDATE', 'Project Update'
+        TASK_STATUS_CHANGED = 'TASK_STATUS_CHANGED', 'Task Status Update'
 
     recipient = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='notifications'

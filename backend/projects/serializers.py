@@ -19,3 +19,18 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     def get_assigned_employees_names(self, obj):
         return [user.username for user in obj.assigned_employees.all()]
+
+    def validate_name(self, value):
+        value = value.strip()
+        if len(value) < 2:
+            raise serializers.ValidationError("Project name must be at least 2 characters.")
+        return value
+
+    def validate(self, attrs):
+        start = attrs.get('start_date', getattr(self.instance, 'start_date', None))
+        deadline = attrs.get('deadline', getattr(self.instance, 'deadline', None))
+        if start and deadline and deadline < start:
+            raise serializers.ValidationError(
+                {"deadline": ["Deadline cannot be before the start date."]}
+            )
+        return attrs
